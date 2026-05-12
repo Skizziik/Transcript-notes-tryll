@@ -1,0 +1,29 @@
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+
+# Outputs — кэш-результаты транскрипций
+output/
+*.docx
+*.notes.md
+
+# Не коммитим аудио по умолчанию
+*.m4a
+*.mp3
+*.wav
+*.mp4
+*.mov
+*.opus
+*.aac
+*.flac
+*.aiff
+*.ogg
+*.webm
+
+# тестовый материал из ручных прогонов
+test_audio/
+
+# IDE
+.vscode/
+.idea/
