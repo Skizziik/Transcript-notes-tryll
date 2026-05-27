@@ -3,6 +3,10 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import logging
+import os
+import shutil
+import subprocess
+import sys
 import threading
 import time
 from pathlib import Path
@@ -151,25 +155,34 @@ async def download(run_id: str, name: str):
 
 
 @app.post("/api/runs")
-async def create_run(file: UploadFile, language: str | None = None, whisper_model: str | None = None):
-    if not file.filename:
-        raise HTTPException(400, "filename required")
-    suffix = Path(file.filename).suffix.lower()
-    if suffix not in AUDIO_EXTS:
-        raise HTTPException(400, f"unsupported format {suffix}")
-    payload = await file.read()
-    if not payload:
-        raise HTTPException(400, "empty file")
+async def create_run(
+    files: list[UploadFile],
+    language: str | None = None,
+    whisper_model: str | None = None,
+):
+    if not files:
+        raise HTTPException(400, "no files")
+    payloads: list[tuple[bytes, str]] = []
+    for f in files:
+        if not f.filename:
+            raise HTTPException(400, "filename required")
+        suffix = Path(f.filename).suffix.lower()
+        if suffix not in AUDIO_EXTS:
+            raise HTTPException(400, f"unsupported format {suffix} for {f.filename}")
+        data = await f.read()
+        if not data:
+            raise HTTPException(400, f"empty file: {f.filename}")
+        payloads.append((data, f.filename))
     settings = {
         "language": language or None,
         "whisper_model": whisper_model or "large-v3",
     }
     try:
-        run = pipeline.create_run(payload, file.filename, settings)
+        run = pipeline.create_run(payloads, settings)
     except ValueError as e:
         raise HTTPException(400, str(e))
     pipeline.start_run(run, asyncio.get_running_loop())
-    return JSONResponse({"run_id": run.id, "status": run.status})
+    return JSONResponse({"run_id": run.id, "status": run.status, "parts": len(payloads)})
 
 
 @app.websocket("/ws/{run_id}")
@@ -230,6 +243,80 @@ def _wait_until_up(url: str, timeout: float = 15.0) -> bool:
     return False
 
 
+class DesktopApi:
+    """Exposed to the page as window.pywebview.api — handles 'downloads' inside
+    the pywebview window (WebView2 doesn't surface a download UX on its own).
+    """
+
+    def _resolve(self, run_id: str, name: str) -> Path | None:
+        rec = db.get_run(run_id)
+        if not rec:
+            return None
+        run_dir = Path(rec["run_dir"]).resolve()
+        target = (run_dir / name).resolve()
+        if not str(target).startswith(str(run_dir)):
+            return None
+        return target if target.exists() else None
+
+    def open_file(self, run_id: str, name: str) -> dict:
+        target = self._resolve(run_id, name)
+        if not target:
+            return {"ok": False, "error": "файл не найден"}
+        try:
+            if sys.platform == "win32":
+                os.startfile(str(target))  # noqa: S606
+            elif sys.platform == "darwin":
+                subprocess.run(["open", str(target)], check=False)
+            else:
+                subprocess.run(["xdg-open", str(target)], check=False)
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def show_in_folder(self, run_id: str, name: str) -> dict:
+        target = self._resolve(run_id, name)
+        if not target:
+            return {"ok": False, "error": "файл не найден"}
+        try:
+            if sys.platform == "win32":
+                subprocess.Popen(["explorer", f"/select,{target}"])
+            elif sys.platform == "darwin":
+                subprocess.run(["open", "-R", str(target)], check=False)
+            else:
+                subprocess.run(["xdg-open", str(target.parent)], check=False)
+            return {"ok": True}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+    def save_as(self, run_id: str, name: str, suggested_name: str | None = None) -> dict:
+        target = self._resolve(run_id, name)
+        if not target:
+            return {"ok": False, "error": "файл не найден"}
+        try:
+            import webview  # type: ignore
+            windows = webview.windows
+            window = windows[0] if windows else None
+            if window is None:
+                return {"ok": False, "error": "no window"}
+
+            suffix = target.suffix
+            ext_label = suffix.upper().lstrip(".") + " file"
+            file_types = (f"{ext_label} (*{suffix})", "All files (*.*)")
+            initial = suggested_name or target.name
+            dest = window.create_file_dialog(
+                webview.SAVE_DIALOG,
+                save_filename=initial,
+                file_types=file_types,
+            )
+            if not dest:
+                return {"ok": False, "error": "cancelled"}
+            dest_path = dest if isinstance(dest, str) else dest[0]
+            shutil.copy2(target, dest_path)
+            return {"ok": True, "path": dest_path}
+        except Exception as e:
+            return {"ok": False, "error": str(e)}
+
+
 def launch() -> None:
     ensure_dirs()
     db.init()
@@ -245,6 +332,7 @@ def launch() -> None:
     try:
         import webview  # type: ignore
 
+        api = DesktopApi()
         webview.create_window(
             "Transcript Notes (tryll)",
             url,
@@ -252,6 +340,7 @@ def launch() -> None:
             height=820,
             min_size=(900, 640),
             background_color="#0b0d12",
+            js_api=api,
         )
         webview.start()
     except Exception as e:

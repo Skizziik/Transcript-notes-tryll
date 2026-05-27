@@ -21,6 +21,20 @@ if not exist ".venv\" (
     )
 )
 
+REM Compute SHA256 of requirements.txt; skip pip if marker file matches.
+set "REQ_HASH="
+for /f "skip=1 delims=" %%H in ('certutil -hashfile requirements.txt SHA256 ^| findstr /r /c:"[0-9a-f][0-9a-f]"') do (
+    if not defined REQ_HASH set "REQ_HASH=%%H"
+)
+set "REQ_HASH=%REQ_HASH: =%"
+set "MARKER=.venv\.deps-%REQ_HASH%.ok"
+
+if exist "%MARKER%" (
+    echo [2/4] Зависимости уже актуальны — пропускаю pip install
+    echo [3/4] (тоже пропускаю)
+    goto :gpu_check
+)
+
 echo [2/4] Обновляю pip...
 .venv\Scripts\python -m pip install --upgrade pip wheel
 
@@ -31,6 +45,11 @@ if errorlevel 1 (
     exit /b 1
 )
 
+REM Очищаем старые маркеры (от прошлых версий requirements.txt) и пишем новый.
+del /q ".venv\.deps-*.ok" 2>nul
+echo ok > "%MARKER%"
+
+:gpu_check
 echo [4/4] Проверяю GPU...
 .venv\Scripts\python -c "import ctranslate2; n=ctranslate2.get_cuda_device_count(); print(f'CUDA devices: {n}')"
 

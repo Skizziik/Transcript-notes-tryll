@@ -27,6 +27,7 @@
 
   let currentWs = null;
   let currentRunId = null;
+  let notesRawBuffer = "";
 
   // --- health check ---
   refreshHealth();
@@ -64,7 +65,7 @@
     })
   );
   dz.addEventListener("drop", (e) => {
-    if (e.dataTransfer?.files?.length) startUpload(e.dataTransfer.files[0]);
+    if (e.dataTransfer?.files?.length) startUpload(Array.from(e.dataTransfer.files));
   });
   dz.addEventListener("click", (e) => {
     if (e.target.id === "browse-btn") return;
@@ -75,7 +76,7 @@
     fileInput.click();
   });
   fileInput.addEventListener("change", () => {
-    if (fileInput.files?.length) startUpload(fileInput.files[0]);
+    if (fileInput.files?.length) startUpload(Array.from(fileInput.files));
   });
 
   refreshBtn.addEventListener("click", refreshHistory);
@@ -89,10 +90,17 @@
   });
 
   // --- upload + run ---
-  async function startUpload(file) {
-    resetActive(file.name, prettyBytes(file.size));
+  async function startUpload(files) {
+    const list = Array.isArray(files) ? files : [files];
+    if (!list.length) return;
+    const displayName = list.length === 1
+      ? list[0].name
+      : `${list[0].name} (+${list.length - 1} ещё)`;
+    const totalSize = list.reduce((s, f) => s + (f.size || 0), 0);
+    resetActive(displayName, prettyBytes(totalSize));
+
     const fd = new FormData();
-    fd.append("file", file);
+    for (const f of list) fd.append("files", f);
     const params = new URLSearchParams();
     if (langSelect.value) params.set("language", langSelect.value);
     if (modelSelect.value) params.set("whisper_model", modelSelect.value);
@@ -110,7 +118,7 @@
       attachWs(run_id);
       refreshHistory();
     } catch (e) {
-      showToast("Не удалось загрузить файл: " + e.message, true);
+      showToast("Не удалось загрузить файлы: " + e.message, true);
     }
   }
 
@@ -121,6 +129,7 @@
     activeName.textContent = name;
     activeMeta.textContent = sizeHint ? `${sizeHint} · в очереди…` : "";
     notesStream.textContent = "";
+    notesRawBuffer = "";
     doneActions.innerHTML = "";
 
     document.querySelectorAll(".stage").forEach((s) => {
@@ -190,7 +199,9 @@
   }
 
   function appendNotes(text) {
-    notesStream.textContent += text;
+    notesRawBuffer += text;
+    // Hide the leading <!-- filename: ... --> marker from the live view.
+    notesStream.textContent = notesRawBuffer.replace(/^\s*<!--\s*filename\s*:[\s\S]*?-->\s*\n?/, "");
     const lp = $("live-preview");
     lp.scrollTop = lp.scrollHeight;
   }
@@ -204,10 +215,15 @@
 
     doneActions.innerHTML = "";
     const a = ev.artifacts || {};
-    if (a.notes_docx) doneActions.appendChild(makeDownloadBtn(currentRunId, a.notes_docx, ".docx (заметки)", true));
-    if (a.notes_md) doneActions.appendChild(makeDownloadBtn(currentRunId, a.notes_md, ".md"));
-    if (a.transcript_txt) doneActions.appendChild(makeDownloadBtn(currentRunId, a.transcript_txt, ".txt транскрипт"));
-    if (a.transcript_json) doneActions.appendChild(makeDownloadBtn(currentRunId, a.transcript_json, ".json сегменты"));
+    const titleHint = ev.title || "";
+    if (a.notes_docx) {
+      doneActions.appendChild(makeDownloadBtn(currentRunId, a.notes_docx, "открыть .docx", true));
+      doneActions.appendChild(makeSaveAsBtn(currentRunId, a.notes_docx, suggestName(titleHint, ".docx", a.notes_docx)));
+      doneActions.appendChild(makeShowInFolderBtn(currentRunId, a.notes_docx));
+    }
+    if (a.notes_md) doneActions.appendChild(makeDownloadBtn(currentRunId, a.notes_md, "открыть .md"));
+    if (a.transcript_txt) doneActions.appendChild(makeDownloadBtn(currentRunId, a.transcript_txt, "открыть .txt"));
+    if (a.transcript_json) doneActions.appendChild(makeDownloadBtn(currentRunId, a.transcript_json, "открыть .json"));
 
     refreshHistory();
   }
@@ -228,12 +244,92 @@
   }
 
   function makeDownloadBtn(runId, name, label, primary = false) {
-    const a = document.createElement("a");
-    a.className = "dl-btn" + (primary ? " primary" : "");
-    a.href = `/api/runs/${runId}/file/${encodeURIComponent(name)}`;
-    a.download = name;
-    a.textContent = label;
-    return a;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "dl-btn" + (primary ? " primary" : "");
+    btn.textContent = label;
+    btn.title = "Открыть в приложении по умолчанию";
+    btn.addEventListener("click", () => openArtifact(runId, name));
+    return btn;
+  }
+
+  function makeShowInFolderBtn(runId, name, label = "в папке") {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "dl-btn folder-btn";
+    btn.textContent = label;
+    btn.title = "Показать в Проводнике";
+    btn.addEventListener("click", () => showInFolder(runId, name));
+    return btn;
+  }
+
+  function makeSaveAsBtn(runId, name, suggested) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "dl-btn folder-btn";
+    btn.textContent = "сохранить как…";
+    btn.title = "Выбрать место и сохранить копию файла";
+    btn.addEventListener("click", () => saveAs(runId, name, suggested));
+    return btn;
+  }
+
+  async function openArtifact(runId, name) {
+    if (hasDesktopApi()) {
+      const r = await window.pywebview.api.open_file(runId, name);
+      if (!r || !r.ok) showToast("Не получилось открыть: " + ((r && r.error) || "?"), true);
+    } else {
+      window.location.href = `/api/runs/${runId}/file/${encodeURIComponent(name)}`;
+    }
+  }
+
+  async function showInFolder(runId, name) {
+    if (hasDesktopApi()) {
+      const r = await window.pywebview.api.show_in_folder(runId, name);
+      if (!r || !r.ok) showToast("Не получилось открыть папку: " + ((r && r.error) || "?"), true);
+    } else {
+      showToast("Открытие папки доступно только в десктоп-приложении", true);
+    }
+  }
+
+  async function saveAs(runId, name, suggested) {
+    if (hasDesktopApi()) {
+      const r = await window.pywebview.api.save_as(runId, name, suggested || name);
+      if (r && r.ok) showToast("Сохранено: " + r.path);
+      else if (r && r.error === "cancelled") {/* silent */}
+      else showToast("Не получилось сохранить: " + ((r && r.error) || "?"), true);
+    } else {
+      const a = document.createElement("a");
+      a.href = `/api/runs/${runId}/file/${encodeURIComponent(name)}`;
+      a.download = suggested || name;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    }
+  }
+
+  function hasDesktopApi() {
+    return !!(window.pywebview && window.pywebview.api && window.pywebview.api.open_file);
+  }
+
+  function suggestName(title, ext, fallback) {
+    if (!title) return fallback || ("notes" + ext);
+    const slug = translit(title);
+    return (slug || "notes") + ext;
+  }
+
+  // Russian → Latin transliteration (GOST-ish), good enough for filenames.
+  function translit(s) {
+    const map = {
+      а:"a",б:"b",в:"v",г:"g",д:"d",е:"e",ё:"yo",ж:"zh",з:"z",и:"i",й:"y",
+      к:"k",л:"l",м:"m",н:"n",о:"o",п:"p",р:"r",с:"s",т:"t",у:"u",ф:"f",
+      х:"kh",ц:"ts",ч:"ch",ш:"sh",щ:"shch",ъ:"",ы:"y",ь:"",э:"e",ю:"yu",я:"ya",
+    };
+    return String(s)
+      .toLowerCase()
+      .replace(/[а-яё]/g, (c) => map[c] ?? "")
+      .replace(/[^a-z0-9]+/g, "_")
+      .replace(/^_+|_+$/g, "")
+      .slice(0, 60) || "notes";
   }
 
   // --- history ---
@@ -274,7 +370,11 @@
       `;
       const actions = card.querySelector(".h-actions");
       const a = it.artifacts || {};
-      if (a.notes_docx) actions.appendChild(makeDownloadBtn(it.id, a.notes_docx, ".docx", true));
+      if (a.notes_docx) {
+        actions.appendChild(makeDownloadBtn(it.id, a.notes_docx, ".docx", true));
+        actions.appendChild(makeSaveAsBtn(it.id, a.notes_docx, suggestName(it.title, ".docx", a.notes_docx)));
+        actions.appendChild(makeShowInFolderBtn(it.id, a.notes_docx, "📁"));
+      }
       if (a.notes_md) actions.appendChild(makeDownloadBtn(it.id, a.notes_md, ".md"));
       if (a.transcript_txt) actions.appendChild(makeDownloadBtn(it.id, a.transcript_txt, ".txt"));
       if (a.transcript_json) actions.appendChild(makeDownloadBtn(it.id, a.transcript_json, ".json"));

@@ -31,6 +31,7 @@ def transcribe(
     device: str = DEFAULT_WHISPER_DEVICE,
     compute_type: str = DEFAULT_WHISPER_COMPUTE,
     progress_cb: ProgressCb | None = None,
+    output_stem: str | None = None,
 ) -> dict:
     """Transcribe audio with faster-whisper.
 
@@ -84,7 +85,7 @@ def transcribe(
     if progress_cb:
         progress_cb(1.0, "Транскрипция готова")
 
-    base = audio_path.stem
+    base = output_stem or audio_path.stem
     txt_path = out_dir / f"{base}.txt"
     json_path = out_dir / f"{base}.json"
 

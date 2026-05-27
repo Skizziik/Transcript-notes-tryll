@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 import shutil
 import subprocess
 import sys
@@ -12,6 +13,16 @@ from .config import CLAUDE_BIN, CLAUDE_MODEL
 NotesProgressCb = Callable[[str, str | None], None]
 
 NOTES_PROMPT = """Ты — ассистент, который превращает транскрипты в детальные структурированные заметки на русском.
+
+## Имя файла
+
+В **самой первой строке** ответа верни HTML-комментарий с предложенным именем файла на английском, snake_case, отражающим суть встречи:
+
+```
+<!-- filename: meeting_impressions_q1 -->
+```
+
+Требования к slug: только латиница, цифры и подчёркивания, до 60 символов, без расширения. Эта строка нужна нам для имени файла на диске; она будет удалена из текста заметок перед сохранением. После этой строки сразу пиши `## О чём` и далее заметки.
 
 ## Правила оформления заметок
 
@@ -97,7 +108,7 @@ def generate_notes(
     out_path: Path,
     progress_cb: NotesProgressCb | None = None,
     model: str = CLAUDE_MODEL,
-) -> str:
+) -> tuple[str, str | None]:
     ok, msg = check_claude_cli()
     if not ok:
         raise RuntimeError(msg)
@@ -177,10 +188,23 @@ def generate_notes(
     # Strip any accidental fenced wrapper.
     notes_md = _strip_outer_fence(notes_md)
 
+    # Pull out the filename slug Claude was asked to emit on the first line.
+    slug, notes_md = _extract_filename_slug(notes_md)
+
     out_path.write_text(notes_md + "\n", encoding="utf-8")
     if progress_cb:
         progress_cb("", "Заметки готовы")
-    return notes_md
+    return notes_md, slug
+
+
+_FILENAME_RE = re.compile(r"^\s*<!--\s*filename\s*:\s*([A-Za-z0-9_-]{1,80})\s*-->\s*\r?\n?")
+
+
+def _extract_filename_slug(text: str) -> tuple[str | None, str]:
+    m = _FILENAME_RE.match(text)
+    if not m:
+        return None, text
+    return m.group(1), text[m.end():].lstrip()
 
 
 def _extract_text_delta(event: dict) -> str | None:
