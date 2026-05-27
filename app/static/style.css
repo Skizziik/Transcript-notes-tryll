@@ -129,6 +129,93 @@ main {
   text-decoration: underline; padding: 0;
 }
 
+/* staging area */
+.staging {
+  margin-top: 14px;
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px 16px;
+}
+.staging.hidden { display: none; }
+.staging-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+.staging-title { font-weight: 600; font-size: 14px; }
+.staging-meta { color: var(--muted); font-size: 12px; margin-top: 2px; }
+
+.staging-list {
+  list-style: decimal;
+  margin: 0;
+  padding: 0 0 0 22px;
+  color: var(--muted);
+}
+.staging-list li {
+  padding: 7px 4px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px dashed var(--border);
+  color: var(--text);
+}
+.staging-list li:last-child { border-bottom: none; }
+.staging-item-name {
+  flex: 1;
+  font-size: 13px;
+  word-break: break-all;
+}
+.staging-item-size {
+  color: var(--muted);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  flex-shrink: 0;
+}
+.staging-item-actions { display: flex; gap: 4px; flex-shrink: 0; }
+.staging-item-actions button {
+  background: transparent;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--muted);
+  padding: 2px 7px;
+  font-size: 12px;
+  line-height: 1.2;
+  cursor: pointer;
+}
+.staging-item-actions button:hover:not(:disabled) { color: var(--text); border-color: var(--accent); }
+.staging-item-actions button:disabled { opacity: .35; cursor: not-allowed; }
+.staging-item-actions .remove:hover { color: var(--bad); border-color: rgba(239,68,68,.5); }
+
+.staging-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+  justify-content: flex-end;
+  align-items: center;
+}
+.primary-btn {
+  background: linear-gradient(135deg, var(--accent), #5b3df5);
+  border: none;
+  color: white;
+  border-radius: 9px;
+  padding: 10px 20px;
+  font-weight: 600;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: 0 4px 16px rgba(124,92,255,.25);
+}
+.primary-btn:hover:not(:disabled) { filter: brightness(1.08); }
+.primary-btn:disabled { opacity: .45; cursor: not-allowed; box-shadow: none; }
+
+.staging-hint {
+  color: var(--muted);
+  font-size: 11px;
+  margin-top: 10px;
+  text-align: right;
+}
+
 /* settings */
 .settings {
   display: grid;

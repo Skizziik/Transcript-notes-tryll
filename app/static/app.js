@@ -8,6 +8,15 @@
   const modelsList = $("models-list");
   const modelsRefreshBtn = $("models-refresh-btn");
   const cacheInfo = $("cache-info");
+  const stagingEl = $("staging");
+  const stagingList = $("staging-list");
+  const stagingMeta = $("staging-meta");
+  const addMoreBtn = $("add-more-btn");
+  const clearStagingBtn = $("clear-staging-btn");
+  const startBtn = $("start-btn");
+
+  const AUDIO_EXTS = new Set(["m4a","mp3","wav","mp4","mov","opus","aac","flac","aiff","ogg","webm"]);
+  let staged = [];
 
   const statusDot = $("status-dot");
   const statusText = $("status-text");
@@ -65,7 +74,7 @@
     })
   );
   dz.addEventListener("drop", (e) => {
-    if (e.dataTransfer?.files?.length) startUpload(Array.from(e.dataTransfer.files));
+    if (e.dataTransfer?.files?.length) addToStaging(Array.from(e.dataTransfer.files));
   });
   dz.addEventListener("click", (e) => {
     if (e.target.id === "browse-btn") return;
@@ -76,7 +85,18 @@
     fileInput.click();
   });
   fileInput.addEventListener("change", () => {
-    if (fileInput.files?.length) startUpload(Array.from(fileInput.files));
+    if (fileInput.files?.length) addToStaging(Array.from(fileInput.files));
+    fileInput.value = "";
+  });
+
+  addMoreBtn.addEventListener("click", () => fileInput.click());
+  clearStagingBtn.addEventListener("click", () => { staged = []; renderStaging(); });
+  startBtn.addEventListener("click", () => {
+    if (!staged.length) return;
+    const batch = staged.slice();
+    staged = [];
+    renderStaging();
+    startUpload(batch);
   });
 
   refreshBtn.addEventListener("click", refreshHistory);
@@ -88,6 +108,73 @@
       currentWs = null;
     }
   });
+
+  // --- staging ---
+  function addToStaging(files) {
+    const good = [];
+    const skipped = [];
+    for (const f of files) {
+      const ext = (f.name.split(".").pop() || "").toLowerCase();
+      if (AUDIO_EXTS.has(ext)) good.push(f);
+      else skipped.push(f.name);
+    }
+    if (skipped.length) {
+      showToast(`Пропущено: ${skipped.slice(0,3).join(", ")}${skipped.length>3?" …":""} — неподдерживаемый формат`, true);
+    }
+    if (!good.length) return;
+    staged = staged.concat(good);
+    renderStaging();
+  }
+
+  function renderStaging() {
+    if (!staged.length) {
+      stagingEl.classList.add("hidden");
+      return;
+    }
+    stagingEl.classList.remove("hidden");
+    const total = staged.reduce((s, f) => s + (f.size || 0), 0);
+    stagingMeta.textContent = `${staged.length} ${pluralizeRu(staged.length, "файл","файла","файлов")} · ${prettyBytes(total)}`;
+    stagingList.innerHTML = "";
+    staged.forEach((f, idx) => {
+      const li = document.createElement("li");
+      li.innerHTML = `
+        <span class="staging-item-name"></span>
+        <span class="staging-item-size"></span>
+        <span class="staging-item-actions">
+          <button class="up" title="Выше">↑</button>
+          <button class="down" title="Ниже">↓</button>
+          <button class="remove" title="Убрать">×</button>
+        </span>
+      `;
+      li.querySelector(".staging-item-name").textContent = f.name;
+      li.querySelector(".staging-item-size").textContent = prettyBytes(f.size);
+      const upBtn = li.querySelector(".up");
+      const downBtn = li.querySelector(".down");
+      if (idx === 0) upBtn.disabled = true;
+      if (idx === staged.length - 1) downBtn.disabled = true;
+      upBtn.addEventListener("click", () => swapStaged(idx, idx - 1));
+      downBtn.addEventListener("click", () => swapStaged(idx, idx + 1));
+      li.querySelector(".remove").addEventListener("click", () => {
+        staged.splice(idx, 1);
+        renderStaging();
+      });
+      stagingList.appendChild(li);
+    });
+  }
+
+  function swapStaged(i, j) {
+    if (j < 0 || j >= staged.length) return;
+    [staged[i], staged[j]] = [staged[j], staged[i]];
+    renderStaging();
+  }
+
+  function pluralizeRu(n, one, few, many) {
+    const mod10 = n % 10;
+    const mod100 = n % 100;
+    if (mod10 === 1 && mod100 !== 11) return one;
+    if (mod10 >= 2 && mod10 <= 4 && (mod100 < 10 || mod100 >= 20)) return few;
+    return many;
+  }
 
   // --- upload + run ---
   async function startUpload(files) {

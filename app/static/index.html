@@ -27,10 +27,26 @@
         <input type="file" id="file-input" accept=".m4a,.mp3,.wav,.mp4,.mov,.opus,.aac,.flac,.aiff,.ogg,.webm" multiple hidden />
         <div class="dz-inner">
           <div class="dz-icon"></div>
-          <div class="dz-title">Перетащи один или несколько аудиофайлов</div>
-          <div class="dz-hint">или <button id="browse-btn" class="link-btn">выбери на диске</button> · несколько файлов → одна заметка</div>
+          <div class="dz-title">Перетащи аудио сюда</div>
+          <div class="dz-hint">или <button id="browse-btn" class="link-btn">выбери на диске</button> · можно несколько раз — попадут в очередь</div>
           <div class="dz-formats">m4a · mp3 · wav · mp4 · mov · opus · aac · flac · ogg · webm · aiff</div>
         </div>
+      </div>
+
+      <div id="staging" class="staging hidden">
+        <div class="staging-head">
+          <div>
+            <div class="staging-title">Очередь</div>
+            <div class="staging-meta" id="staging-meta">—</div>
+          </div>
+          <button id="clear-staging-btn" class="ghost-btn">очистить</button>
+        </div>
+        <ol id="staging-list" class="staging-list"></ol>
+        <div class="staging-actions">
+          <button id="add-more-btn" class="ghost-btn">+ добавить ещё</button>
+          <button id="start-btn" class="primary-btn">Сделать заметки →</button>
+        </div>
+        <div class="staging-hint">Файлы пойдут в заметку в этом порядке. Будет одна общая заметка по всем файлам.</div>
       </div>
 
       <div class="settings">
