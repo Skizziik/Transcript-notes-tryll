@@ -1,32 +1,33 @@
 @echo off
+chcp 65001 >nul 2>&1
 setlocal
 cd /d "%~dp0"
 
-echo === Сборка TranscriptNotes.exe ===
+echo === Build TranscriptNotes.exe ===
 echo.
 
 if not exist ".venv\Scripts\python.exe" (
-    echo [ERROR] .venv не найден. Сначала запусти setup.bat
+    echo [ERROR] .venv not found. Run setup.bat first.
     exit /b 1
 )
 
-echo [1/3] Ставлю build-зависимости (pyinstaller, pillow)...
+echo [1/3] Installing build deps (pyinstaller, pillow)...
 .venv\Scripts\pip install --quiet pyinstaller pillow
 if errorlevel 1 (
-    echo [ERROR] pip install упал.
+    echo [ERROR] pip install failed.
     exit /b 1
 )
 
-echo [2/3] Генерирую иконку...
+echo [2/3] Generating icon...
 .venv\Scripts\python tools\make_icon.py
 if errorlevel 1 (
-    echo [WARN] не удалось сделать иконку, собираю без неё.
+    echo [WARN] icon generation failed, building without icon.
     set ICON_ARG=
 ) else (
     set ICON_ARG=--icon "%CD%\build\app.ico"
 )
 
-echo [3/3] Запускаю PyInstaller...
+echo [3/3] Running PyInstaller...
 .venv\Scripts\pyinstaller --noconfirm --onefile --windowed ^
     --name "TranscriptNotes" ^
     %ICON_ARG% ^
@@ -35,11 +36,11 @@ echo [3/3] Запускаю PyInstaller...
     --specpath build\pyinstaller ^
     launcher.py
 if errorlevel 1 (
-    echo [ERROR] PyInstaller упал.
+    echo [ERROR] PyInstaller failed.
     exit /b 1
 )
 
 echo.
-echo === Готово ===
-echo TranscriptNotes.exe лежит в корне. Дважды кликни — откроется приложение.
+echo === Done ===
+echo TranscriptNotes.exe is in the project root. Double-click to launch.
 endlocal

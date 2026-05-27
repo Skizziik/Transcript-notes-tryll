@@ -1,25 +1,26 @@
 @echo off
+chcp 65001 >nul 2>&1
 setlocal
 cd /d "%~dp0"
 
-echo === Сборка TranscriptNotes-Setup.exe ===
+echo === Build TranscriptNotes-Setup.exe ===
 echo.
 
 if not exist "TranscriptNotes.exe" (
-    echo [INFO] TranscriptNotes.exe не найден — запускаю build_exe.bat...
+    echo [INFO] TranscriptNotes.exe missing -- running build_exe.bat first...
     call build_exe.bat
     if errorlevel 1 (
-        echo [ERROR] Не удалось собрать TranscriptNotes.exe
+        echo [ERROR] Failed to build TranscriptNotes.exe
         exit /b 1
     )
 )
 
 if not exist "build\app.ico" (
-    echo [INFO] Иконки нет, делаю...
+    echo [INFO] Icon missing, generating...
     .venv\Scripts\python tools\make_icon.py
 )
 
-REM Locate Inno Setup Compiler
+REM Locate Inno Setup Compiler.
 set "ISCC="
 for %%P in (
     "%ProgramFiles(x86)%\Inno Setup 6\ISCC.exe"
@@ -30,21 +31,20 @@ for %%P in (
 )
 
 if "%ISCC%"=="" (
-    echo [ERROR] Не найден Inno Setup Compiler (ISCC.exe).
-    echo Установи Inno Setup 6 отсюда: https://jrsoftware.org/isdl.php
-    echo После установки запусти этот скрипт снова.
+    echo [ERROR] Inno Setup Compiler not found.
+    echo Install Inno Setup 6 from https://jrsoftware.org/isdl.php and re-run.
     exit /b 1
 )
 
-echo [INFO] Использую: %ISCC%
+echo [INFO] Using: %ISCC%
 echo.
 "%ISCC%" "installer\TranscriptNotes.iss"
 if errorlevel 1 (
-    echo [ERROR] Inno Setup упал.
+    echo [ERROR] Inno Setup failed.
     exit /b 1
 )
 
 echo.
-echo === Готово ===
-for %%F in (TranscriptNotes-Setup-*.exe) do echo Установщик: %%F
+echo === Done ===
+for %%F in (TranscriptNotes-Setup-*.exe) do echo Installer: %%F
 endlocal
