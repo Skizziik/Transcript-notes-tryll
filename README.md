@@ -1,116 +1,137 @@
-# Transcript Notes (tryll)
+# Transcript Notes (tryll) — Windows app
 
-Локальная транскрипция аудио на Apple Silicon + детальные структурированные заметки на русском в `.docx`. Без облака для самой транскрипции — звук с машины не уходит.
+Десктоп-приложение под Windows: бросаешь аудиофайл в окно → получаешь подробные структурированные заметки в `.docx`. С прогресс-барами, историей запусков и скачиванием артефактов прямо из UI.
 
-- **Транскрипция:** [MLX Whisper](https://github.com/ml-explore/mlx-examples/tree/main/whisper) (`large-v3`), работает через Metal на M-чипах.
-- **Заметки:** Claude Code прямо из чата, через слэш-команду `/notes`.
-- **Конвертация в .docx:** pandoc.
+Под капотом:
 
-Любой язык на входе → русские заметки на выходе (английские термины, имена, инструменты сохраняются как есть).
+- **Транскрипция** — [faster-whisper](https://github.com/SYSTRAN/faster-whisper) с автоопределением CUDA (NVIDIA GPU). Модель по умолчанию — `large-v3`.
+- **Заметки** — твой залогиненный Claude Code CLI, модель `opus`. Стриминг ответа в живом превью.
+- **`.docx`** — генерация через `python-docx`, без pandoc / без системных зависимостей.
+- **UI** — нативное окно через pywebview (WebView2 встроен в Windows 11).
 
-## Зачем
+Любой язык на входе → русские заметки на выходе.
 
-Сделать так, чтобы из встречи/лекции/звонка получались **подробные**, а не пересказ-в-три-строки, заметки — с цифрами, именами, цитатами, action items и открытыми вопросами. Голосовой ввод никуда не уходит, кроме твоей машины. Текст транскрипта Claude видит — но это уже текст без аудио.
+## Что появилось в окне
 
-## Workflow
-
-```
-input/audio.m4a  →  MLX Whisper  →  output/audio.txt
-                                     ↓
-                                  Claude reads
-                                     ↓
-                       output/audio.notes.md  →  pandoc  →  output/audio.notes.docx
-```
-
-## Структура репо
-
-```
-scripts/
-  transcribe.py       # MLX Whisper → output/<name>.txt + .json (с таймкодами)
-  to_docx.py          # Markdown → .docx через pandoc
-.claude/
-  commands/
-    notes.md          # /notes — слэш-команда для Claude Code
-input/                # сюда кидаешь аудио (gitignored)
-output/               # результаты — txt, md, docx (gitignored)
-```
+- Drop-zone — бросаешь файл, всё стартует.
+- Три прогресс-бара: транскрипция (с реальным % по аудиосекундам), заметки (стриминг от Claude), `.docx`.
+- Живой превью заметок по мере того, как Claude их пишет.
+- История всех запусков справа: дата, длительность, язык, статус. Скачивание `.docx` / `.md` / `.txt` / `.json` для каждой записи.
+- Удаление записи из истории чистит и папку на диске.
 
 ## Установка (один раз)
 
-Требуется macOS на Apple Silicon (M1+), Python 3.10+, Homebrew.
+Требуется:
+- Windows 10 / 11
+- [Python 3.10+](https://www.python.org/downloads/) (при установке поставь галку **Add Python to PATH**)
+- [Claude Code CLI](https://claude.ai/code) — установлен и залогинен (`claude auth login`)
+- Опционально: NVIDIA GPU + актуальный драйвер — для CUDA-ускорения транскрипции
 
-```bash
-# системные зависимости
-brew install ffmpeg pandoc
+В корне репо запусти:
 
-# python окружение
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
+```cmd
+setup.bat
 ```
 
-При первом запуске модель `whisper-large-v3-mlx` (~3 GB) скачается из HuggingFace в `~/.cache/huggingface/` и закэшируется. Дальше всё быстро.
+Скрипт создаст `.venv\`, поставит зависимости и проверит наличие CUDA-устройств.
 
-## Использование
+При первом запуске Whisper-модель (~3 GB для `large-v3`) скачается из HuggingFace в кэш и дальше будет грузиться мгновенно.
 
-### Через Claude Code (рекомендуется)
+## Запуск
 
-1. В папке `input/` должен лежать **ровно один** аудиофайл (форматы: m4a, mp3, wav, mp4, mov, opus, aac, flac, aiff, ogg, webm). Если файлов 0 или больше 1 — команда остановится и попросит исправить.
-2. Открой Claude Code в корне репо.
-3. Набери `/notes`.
-4. Жди. Каждый запуск создаёт **свою папку** в `output/`:
-
-```
-output/<имя>_YYYY-MM-DD_HH-MM/
-  <имя>.txt            — сырой транскрипт
-  <имя>.json           — сегменты с таймкодами
-  <имя>.notes.md       — заметки (можно править)
-  <имя>.notes.docx     — финальный документ
+```cmd
+start.bat
 ```
 
-Так старые результаты не перетираются — каждая запись разбирается полётов отдельно.
+Откроется отдельное окно приложения. Перетащи аудио — пайплайн запустится автоматически.
 
-Опционально: `/notes --lang ru` — принудительно указать язык (быстрее, чем автоопределение).
+Альтернатива: открыть приложение в браузере. Если `pywebview` не сработает, оно само распечатает URL вида `http://127.0.0.1:8765` — открой его.
 
-### Вручную (без Claude)
+## Собрать `.exe` (опционально)
 
-```bash
-# 1. транскрипция
-.venv/bin/python scripts/transcribe.py input/audio.m4a --out output
+Чтобы запускать приложение двойным кликом, без `.bat`:
 
-# 2. заметки — пишешь сам или через любой LLM
-# результат сохрани в output/audio.notes.md
-
-# 3. конвертация в docx
-.venv/bin/python scripts/to_docx.py output/audio.notes.md
+```cmd
+build_exe.bat
 ```
 
-## Модели
+После сборки в корне появится `TranscriptNotes.exe` — это маленький лаунчер (~10 МБ), который запускает приложение из `.venv` без мигания консоли. Его можно закрепить на панель задач, кинуть ярлык на рабочий стол.
 
-По умолчанию — `mlx-community/whisper-large-v3-mlx` (лучшее качество для русского).
+> Сам Python и зависимости в `.exe` не упаковываются — Whisper-модель ~3 ГБ и CUDA-библиотеки нет смысла бандлить. Поэтому `.venv\` и `app\` должны лежать рядом с `.exe`. Если обновишь код — пересобирать exe не надо.
 
-Если нужно быстрее (например, на коротких записях с чистой речью):
+Если запуск падает — лог пишется в `storage\launcher.log`, и diff попадёт во всплывающее окно ошибки.
 
-```bash
-.venv/bin/python scripts/transcribe.py input/audio.m4a \
-  --model mlx-community/whisper-large-v3-turbo
+## Поддерживаемые форматы аудио/видео
+
+`m4a`, `mp3`, `wav`, `mp4`, `mov`, `opus`, `aac`, `flac`, `aiff`, `ogg`, `webm`.
+
+## Где лежат файлы
+
 ```
+storage/
+  history.db                       — SQLite с историей
+  runs/
+    YYYY-MM-DD_HH-MM-SS_<name>_<id>/
+      audio.<ext>                   — оригинал
+      audio.txt                     — сырой транскрипт
+      audio.json                    — сегменты с таймкодами
+      notes.md                      — заметки (можно править руками)
+      notes.docx                    — финальный документ ← это главное
+```
+
+Папка `storage/` в `.gitignore`.
 
 ## Что именно делает Claude с транскриптом
 
-См. [`.claude/commands/notes.md`](.claude/commands/notes.md) — там полные инструкции. Кратко:
+Системный промпт зашит в [`app/notes_generator.py`](app/notes_generator.py). Кратко:
 
 - Иерархия `##` / `###` по темам, в начале короткое «О чём».
 - Сохраняет цифры, имена, команды, примеры, цитаты — не пересказывает.
-- Определения терминов оформляет явно: **GraphQL** — query language for APIs…
+- Английские термины оставляет латиницей (`GitHub`, не «ГитХаб»).
 - Отдельные разделы: `Решения и Action Items`, `Открытые вопросы`.
-- Сильные цитаты — блок `>` с указанием говорящего, если ясно.
-- Не выдумывает: плохо расслышанное помечает `[неразборчиво]` или `[?]`.
+- Сильные цитаты — блок `>`.
+- Таймкоды `[MM:SS]` рядом с подтемами, если запись длиннее ~10 минут.
+- Не выдумывает: плохо расслышанное → `[неразборчиво]` или `[?]`.
 - Не добавляет «Выводы»/«Заключение», если их не было в записи.
 
-## Стилизация .docx
+## Настройки
 
-Хочешь свой шрифт/отступы — положи `reference.docx` в корень проекта (можно сгенерить и отредактировать в Word: `pandoc -o reference.docx --print-default-data-file reference.docx`). Скрипт подхватит автоматически.
+В UI можно выбрать модель Whisper и язык распознавания.
 
-## Поддержка
+Переменные окружения (необязательные):
 
-Apple Silicon (M1/M2/M3/M4). На Intel-Mac или Linux MLX не работает — нужна замена на `faster-whisper` или `whisper.cpp`.
+| Переменная           | Значение по умолчанию | Что делает                               |
+|----------------------|----------------------|-------------------------------------------|
+| `WHISPER_MODEL`      | `large-v3`           | модель faster-whisper                     |
+| `WHISPER_DEVICE`     | `auto`               | `cuda` / `cpu` / `auto`                   |
+| `WHISPER_COMPUTE`    | `auto`               | `float16` (GPU) / `int8` (CPU) / `auto`   |
+| `CLAUDE_MODEL`       | `opus`               | модель в Claude CLI                       |
+| `CLAUDE_BIN`         | `claude`             | путь к Claude CLI, если не в PATH         |
+| `HOST` / `PORT`      | `127.0.0.1:8765`     | где поднимается локальный сервер          |
+
+## Чем это отличается от macOS-версии
+
+| | macOS (старая) | Windows (эта) |
+|---|---|---|
+| Транскрипция | MLX Whisper (Metal) | faster-whisper (CUDA/CPU) |
+| Запуск | Slash-команда `/notes` в Claude Code | Десктоп-приложение с UI |
+| Заметки | Claude Code чат | Claude CLI subprocess (модель opus) |
+| `.docx` | pandoc (системно) | python-docx (Python-only) |
+| Структура входа | один файл в `input/` | drag-and-drop любого файла |
+| История | папки в `output/` | + SQLite + UI |
+
+## Структура
+
+```
+app/
+  main.py              FastAPI + WebSocket + pywebview launcher
+  pipeline.py          оркестрация запуска, прогресс-события
+  transcribe.py        faster-whisper wrapper
+  notes_generator.py   Claude CLI subprocess + system prompt
+  md_to_docx.py        Markdown → .docx через python-docx
+  db.py                SQLite history
+  config.py            пути, дефолты
+  static/              UI: index.html, style.css, app.js
+setup.bat / start.bat
+requirements.txt
+```

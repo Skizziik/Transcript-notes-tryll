@@ -1,0 +1,129 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8" />
+  <title>Transcript Notes — tryll</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo"></div>
+      <div>
+        <h1>Transcript Notes</h1>
+        <div class="sub">аудио → транскрипт → подробные заметки в <code>.docx</code></div>
+      </div>
+    </div>
+    <div class="status" id="status">
+      <span class="dot" id="status-dot"></span>
+      <span id="status-text">проверка…</span>
+    </div>
+  </header>
+
+  <main>
+    <section class="left-pane">
+      <div id="dropzone" class="dropzone">
+        <input type="file" id="file-input" accept=".m4a,.mp3,.wav,.mp4,.mov,.opus,.aac,.flac,.aiff,.ogg,.webm" hidden />
+        <div class="dz-inner">
+          <div class="dz-icon"></div>
+          <div class="dz-title">Перетащи аудиофайл сюда</div>
+          <div class="dz-hint">или <button id="browse-btn" class="link-btn">выбери на диске</button></div>
+          <div class="dz-formats">m4a · mp3 · wav · mp4 · mov · opus · aac · flac · ogg · webm · aiff</div>
+        </div>
+      </div>
+
+      <div class="settings">
+        <label>
+          Whisper модель
+          <select id="model-select">
+            <option value="large-v3" selected>large-v3 (лучшее качество, ~3 GB)</option>
+            <option value="large-v3-turbo">large-v3-turbo (быстрее)</option>
+            <option value="medium">medium</option>
+            <option value="small">small (быстро, чуть хуже)</option>
+          </select>
+        </label>
+        <label>
+          Язык
+          <select id="lang-select">
+            <option value="">авто</option>
+            <option value="ru">ru</option>
+            <option value="en">en</option>
+            <option value="es">es</option>
+            <option value="de">de</option>
+            <option value="fr">fr</option>
+            <option value="it">it</option>
+            <option value="pt">pt</option>
+            <option value="zh">zh</option>
+            <option value="ja">ja</option>
+          </select>
+        </label>
+      </div>
+
+      <div id="active-run" class="active-run hidden">
+        <div class="active-head">
+          <div>
+            <div class="active-title" id="active-name">—</div>
+            <div class="active-meta" id="active-meta"></div>
+          </div>
+          <button id="cancel-btn" class="ghost-btn hidden">скрыть</button>
+        </div>
+
+        <div class="stages">
+          <div class="stage hidden" data-stage="model">
+            <div class="stage-head"><span class="stage-name">Загрузка модели</span><span class="stage-pct">—</span></div>
+            <div class="bar"><div class="fill"></div></div>
+            <div class="stage-msg"></div>
+          </div>
+          <div class="stage" data-stage="transcribe">
+            <div class="stage-head"><span class="stage-name">Транскрипция</span><span class="stage-pct">0%</span></div>
+            <div class="bar"><div class="fill"></div></div>
+            <div class="stage-msg"></div>
+          </div>
+          <div class="stage" data-stage="notes">
+            <div class="stage-head"><span class="stage-name">Заметки (Claude Opus)</span><span class="stage-pct">—</span></div>
+            <div class="bar indeterminate"><div class="fill"></div></div>
+            <div class="stage-msg"></div>
+          </div>
+          <div class="stage" data-stage="docx">
+            <div class="stage-head"><span class="stage-name">Конвертация в .docx</span><span class="stage-pct">—</span></div>
+            <div class="bar"><div class="fill"></div></div>
+            <div class="stage-msg"></div>
+          </div>
+        </div>
+
+        <div class="live-preview" id="live-preview">
+          <div class="lp-head">Живой превью заметок</div>
+          <pre id="notes-stream"></pre>
+        </div>
+
+        <div id="active-done" class="active-done hidden">
+          <div class="done-title">Готово ✔</div>
+          <div class="actions" id="done-actions"></div>
+        </div>
+      </div>
+    </section>
+
+    <aside class="right-pane">
+      <div class="pane-section">
+        <div class="section-head">
+          <h2>Модели Whisper</h2>
+          <button id="models-refresh-btn" class="ghost-btn">обновить</button>
+        </div>
+        <div id="models-list" class="models-list"></div>
+        <div class="cache-info" id="cache-info"></div>
+      </div>
+
+      <div class="pane-section">
+        <div class="section-head">
+          <h2>История</h2>
+          <button id="refresh-btn" class="ghost-btn">обновить</button>
+        </div>
+        <div id="history-list" class="history-list"></div>
+      </div>
+    </aside>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

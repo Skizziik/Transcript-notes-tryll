@@ -1,29 +1,18 @@
 .venv/
 __pycache__/
 *.pyc
+storage/
+.env
 .DS_Store
+Thumbs.db
 
-# Outputs — кэш-результаты транскрипций
-output/
-*.docx
-*.notes.md
+# Local IDE/CLI config
+.claude/
 
-# Не коммитим аудио по умолчанию
-*.m4a
-*.mp3
-*.wav
-*.mp4
-*.mov
-*.opus
-*.aac
-*.flac
-*.aiff
-*.ogg
-*.webm
+# Build artifacts
+build/
+*.exe
+TranscriptNotes-Setup-*.exe
 
-# тестовый материал из ручных прогонов
-test_audio/
-
-# IDE
-.vscode/
-.idea/
+# PyInstaller spec lives under build/, but be explicit anyway
+*.spec
