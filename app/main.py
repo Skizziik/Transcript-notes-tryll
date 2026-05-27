@@ -317,17 +317,47 @@ class DesktopApi:
             return {"ok": False, "error": str(e)}
 
 
+def _port_busy(host: str, port: int) -> bool:
+    import socket
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+        s.settimeout(0.5)
+        try:
+            s.bind((host, port))
+            return False
+        except OSError:
+            return True
+
+
 def launch() -> None:
     ensure_dirs()
     db.init()
+
+    global PORT  # may shift if default is busy
+    if _port_busy(HOST, PORT):
+        # Try the next few ports — keeps the bookmark stable most of the time
+        # but doesn't fail silently when 8765 is taken by something else.
+        chosen = None
+        for candidate in range(PORT + 1, PORT + 20):
+            if not _port_busy(HOST, candidate):
+                chosen = candidate
+                break
+        if chosen is None:
+            print(
+                f"Порт {PORT} занят, и соседние тоже. Закрой процесс, держащий порт, "
+                f"или задай переменную окружения PORT=<свободный_порт> и запусти снова.",
+                flush=True,
+            )
+            sys.exit(2)
+        print(f"[launch] port {PORT} busy, switching to {chosen}", flush=True)
+        PORT = chosen
 
     server_thread = threading.Thread(target=_run_server, daemon=True, name="uvicorn")
     server_thread.start()
 
     url = f"http://{HOST}:{PORT}"
     if not _wait_until_up(f"{url}/api/health"):
-        print(f"Сервер не поднялся за 15 секунд. Открой вручную: {url}")
-        return
+        print(f"Сервер не поднялся за 15 секунд. Открой вручную: {url}", flush=True)
+        sys.exit(3)
 
     try:
         import webview  # type: ignore
