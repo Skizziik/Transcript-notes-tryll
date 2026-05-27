@@ -101,13 +101,16 @@ def generate_notes(
     ok, msg = check_claude_cli()
     if not ok:
         raise RuntimeError(msg)
+    # On Windows the npm-installed claude is actually claude.cmd. subprocess.Popen
+    # without shell=True won't pick up PATHEXT — resolve the full path explicitly.
+    claude_path = msg
 
     prompt = build_prompt(transcript, language, duration_sec, segments)
     if progress_cb:
         progress_cb("", "Запуск Claude CLI…")
 
     cmd = [
-        CLAUDE_BIN,
+        claude_path,
         "-p",
         "--model", model,
         "--tools", "",
@@ -117,11 +120,13 @@ def generate_notes(
         "--verbose",
     ]
 
-    # On Windows shell=False with a list arg is safest. Pipe prompt via stdin
-    # so we don't run into argv length limits for long transcripts.
     creationflags = 0
     if sys.platform == "win32":
         creationflags = 0x08000000  # CREATE_NO_WINDOW
+
+    # Use shell=True on Windows so .cmd/.bat shims (like npm-installed claude.cmd)
+    # are interpreted by the command processor instead of failing CreateProcess.
+    use_shell = sys.platform == "win32" and claude_path.lower().endswith((".cmd", ".bat"))
 
     proc = subprocess.Popen(
         cmd,
@@ -132,6 +137,7 @@ def generate_notes(
         encoding="utf-8",
         errors="replace",
         creationflags=creationflags,
+        shell=use_shell,
     )
 
     assert proc.stdin is not None
