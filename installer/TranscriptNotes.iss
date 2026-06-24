@@ -4,7 +4,7 @@
 
 #define MyAppName "Transcript Notes"
 #define MyAppShortName "TranscriptNotes"
-#define MyAppVersion "1.0.5"
+#define MyAppVersion "1.0.6"
 #define MyAppPublisher "tryll"
 #define MyAppExeName "TranscriptNotes.exe"
 
@@ -66,10 +66,14 @@ Filename: "{app}\{#MyAppExeName}"; Description: "Запустить {#MyAppName}
     Flags: nowait postinstall skipifsilent
 
 [UninstallDelete]
-; Keep .venv between reinstalls — recreating it takes 2–5 min of pip install.
-; If user really wants a clean slate, they can delete %LOCALAPPDATA%\Programs\TranscriptNotes\.venv manually.
+; Full wipe: remove everything we generated post-install (venv, storage with
+; models + history, build, pycache) and then the whole install dir. Uninstall
+; leaves nothing behind.
+Type: filesandordirs; Name: "{app}\.venv"
+Type: filesandordirs; Name: "{app}\storage"
 Type: filesandordirs; Name: "{app}\build"
 Type: filesandordirs; Name: "{app}\app\__pycache__"
+Type: filesandordirs; Name: "{app}"
 
 [Code]
 function InitializeSetup(): Boolean;
