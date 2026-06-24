@@ -26,14 +26,20 @@ def _register_nvidia_dll_dirs() -> None:
         import nvidia  # type: ignore
     except ImportError:
         return
-    base = Path(nvidia.__file__).resolve().parent
-    for sub in ("cublas/bin", "cudnn/bin"):
-        bin_dir = base / sub
-        if bin_dir.exists():
-            try:
-                os.add_dll_directory(str(bin_dir))
-            except (OSError, AttributeError):
-                pass
+    # `nvidia` is a PEP 420 namespace package: __file__ is None, so use __path__
+    # (a list of one-or-more roots) to locate the bundled CUDA DLL dirs.
+    roots = list(getattr(nvidia, "__path__", []) or [])
+    if not roots and getattr(nvidia, "__file__", None):
+        roots = [str(Path(nvidia.__file__).resolve().parent)]
+    for root in roots:
+        base = Path(root)
+        for sub in ("cublas/bin", "cudnn/bin"):
+            bin_dir = base / sub
+            if bin_dir.exists():
+                try:
+                    os.add_dll_directory(str(bin_dir))
+                except (OSError, AttributeError):
+                    pass
 
 
 _register_nvidia_dll_dirs()
