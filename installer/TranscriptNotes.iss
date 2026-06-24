@@ -4,7 +4,7 @@
 
 #define MyAppName "Transcript Notes"
 #define MyAppShortName "TranscriptNotes"
-#define MyAppVersion "1.0.4"
+#define MyAppVersion "1.0.5"
 #define MyAppPublisher "tryll"
 #define MyAppExeName "TranscriptNotes.exe"
 

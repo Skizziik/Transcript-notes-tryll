@@ -24,8 +24,10 @@ if not exist ".venv\Scripts\python.exe" (
     echo [1/3] .venv already exists -- reusing
 )
 
-REM Probe whether all required packages are already importable.
-.venv\Scripts\python -c "import fastapi, uvicorn, faster_whisper, docx, webview, huggingface_hub, multipart" 1>nul 2>nul
+REM Probe whether all required packages are already importable -- including
+REM the bundled CUDA runtime wheels, so an upgrade from an older version
+REM (whose .venv we keep) still pulls cuBLAS/cuDNN instead of being skipped.
+.venv\Scripts\python -c "import fastapi, uvicorn, faster_whisper, docx, webview, huggingface_hub, multipart, nvidia.cublas, nvidia.cudnn" 1>nul 2>nul
 if not errorlevel 1 (
     echo [2/3] Python dependencies already installed -- skipping pip
     goto :check_gpu
