@@ -6,3 +6,8 @@ huggingface_hub>=0.24
 python-docx>=1.1.2
 pywebview>=5.1
 markdown-it-py>=3.0.0
+
+# CUDA runtime libraries shipped as pip wheels so NVIDIA users don't need a
+# separate CUDA toolkit install. ctranslate2 4.x needs cuBLAS 12 + cuDNN 9.
+nvidia-cublas-cu12
+nvidia-cudnn-cu12>=9,<10

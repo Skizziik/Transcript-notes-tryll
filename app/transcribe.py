@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import os
+import sys
 from pathlib import Path
 from typing import Callable
 
@@ -8,6 +10,33 @@ from . import models as model_mgr
 from .config import DEFAULT_WHISPER_COMPUTE, DEFAULT_WHISPER_DEVICE, DEFAULT_WHISPER_MODEL
 
 ProgressCb = Callable[[float, str], None]
+
+
+def _register_nvidia_dll_dirs() -> None:
+    """Expose pip-installed CUDA libs (nvidia-cublas-cu12, nvidia-cudnn-cu12) to ctranslate2.
+
+    These wheels drop cublas64_12.dll / cudnn_ops*.dll into
+    site-packages/nvidia/<lib>/bin/. Without this, ctranslate2's LoadLibrary
+    can't find them at runtime and fails with errors like
+    "Library cublas64_12.dll is not found or cannot be loaded".
+    """
+    if sys.platform != "win32":
+        return
+    try:
+        import nvidia  # type: ignore
+    except ImportError:
+        return
+    base = Path(nvidia.__file__).resolve().parent
+    for sub in ("cublas/bin", "cudnn/bin"):
+        bin_dir = base / sub
+        if bin_dir.exists():
+            try:
+                os.add_dll_directory(str(bin_dir))
+            except (OSError, AttributeError):
+                pass
+
+
+_register_nvidia_dll_dirs()
 
 
 def _resolve_device_compute(device: str, compute: str) -> tuple[str, str]:
